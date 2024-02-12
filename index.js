@@ -10,20 +10,53 @@ const io = new Server(server, {
   },
 });
 
+const rooms = new Map();
+
 io.on("connection", (socket) => {
-  socket.on("user-joined", () => {
-    socket.broadcast.emit("request-canvas-state");
+  socket.on("create-room", (roomName) => {
+    if (!rooms.has(roomName)) {
+      rooms.set(roomName, []);
+      socket.emit("room-created", { roomName });
+      socket.join(roomName);
+    } else {
+      socket.emit("room-exists", { message: "Room already exists!" });
+    }
   });
 
-  socket.on("canvas-state", (state) => {
-    socket.broadcast.emit("requested-canvas-state", state);
+  socket.on("disconnect", () => {
+    //not working for now
   });
 
-  socket.on("drawing", ({ prevPoint, currentPoint, color }) => {
-    socket.broadcast.emit("drawing", { prevPoint, currentPoint, color });
+  socket.on("get-rooms", () => {
+    const roomNames = Array.from(rooms.keys());
+    socket.emit("rooms", roomNames);
   });
 
-  socket.on("clearCanvas", () => io.emit("clearCanvas"));
+  socket.on("join-room", (roomName) => {
+    if (!rooms.has(roomName)) {
+      socket.emit("room-not-found", { message: "Room does not exist!" });
+    } else {
+      const roomData = rooms.get(roomName);
+      socket.join(roomName);
+      io.sockets.in(roomName).emit("room-joined", roomName);
+    }
+    const numUsersInRoom = io.sockets.adapter.rooms.get(roomName)?.size;
+    console.log(`Number of users in room: ${numUsersInRoom}`, io.sockets.adapter.rooms.get(roomName));
+  });
+
+  socket.on("user-joined", (currentRoom) => {
+    io.sockets.in(currentRoom).emit("request-canvas-state");
+  });
+
+  socket.on("canvas-state", ({ dataURL, currentRoom }) => {
+    io.sockets.in(currentRoom).emit("requested-canvas-state", dataURL);
+  });
+
+  socket.on("drawing", ({ prevPoint, currentPoint, color, currentRoom }) => {
+    io.sockets.in(currentRoom).emit("drawing", { prevPoint, currentPoint, color });
+  });
+
+  socket.on("clearCanvas", (roomName) => io.sockets.in(roomName).emit("clearCanvas"));
 });
 
 server.listen(3001, () => {
