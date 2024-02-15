@@ -12,6 +12,20 @@ const io = new Server(server, {
 
 const rooms = new Map();
 
+const removeUserFromRoom = (socketId) => {
+  for (const [name, userIds] of rooms) {
+    const userIdIndex = userIds.indexOf(socketId);
+    if (userIdIndex !== -1) {
+      userIds.splice(userIdIndex, 1);
+
+      // later add emit message to other users about disconnected user
+
+      if (userIds.length === 0) rooms.delete(name);
+      return;
+    }
+  }
+};
+
 io.on("connection", (socket) => {
   socket.on("create-room", (roomName) => {
     if (!rooms.has(roomName)) {
@@ -25,17 +39,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    for (const [roomName, userIds] of rooms) {
-      const userIdIndex = userIds.indexOf(socket.id);
-      if (userIdIndex !== -1) {
-        userIds.splice(userIdIndex, 1);
-
-        // later add emit message to other users about disconnected user
-
-        if (userIds.length === 0) rooms.delete(roomName);
-        return;
-      }
-    }
+    removeUserFromRoom(socket.id);
   });
 
   socket.on("get-rooms", () => {
@@ -52,6 +56,12 @@ io.on("connection", (socket) => {
       rooms.get(roomName).push(socket.id);
       io.sockets.in(roomName).emit("room-joined", roomName);
     }
+  });
+
+  socket.on("leave-room", (room) => {
+    removeUserFromRoom(socket.id);
+    socket.leave(room);
+    console.log(rooms);
   });
 
   socket.on("user-joined", (currentRoom) => {
