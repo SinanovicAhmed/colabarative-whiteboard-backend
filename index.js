@@ -10,9 +10,7 @@ const io = new Server(server, {
   },
 });
 
-const rooms = new Map();
-
-const removeUserFromRoom = (socketId) => {
+const removeUserFromRoom = (socketId, rooms) => {
   for (const [name, userIds] of rooms) {
     const userIdIndex = userIds.indexOf(socketId);
     if (userIdIndex !== -1) {
@@ -26,6 +24,12 @@ const removeUserFromRoom = (socketId) => {
   }
 };
 
+const emitRoomsOnChange = (rooms, io) => {
+  const roomNames = Array.from(rooms.keys());
+  io.emit("rooms", roomNames);
+};
+
+const rooms = new Map();
 io.on("connection", (socket) => {
   socket.on("create-room", (roomName) => {
     if (!rooms.has(roomName)) {
@@ -33,13 +37,15 @@ io.on("connection", (socket) => {
       rooms.get(roomName).push(socket.id);
       socket.emit("room-created", { roomName });
       socket.join(roomName);
+      emitRoomsOnChange(rooms, io);
     } else {
       socket.emit("room-exists", { message: "Room already exists!" });
     }
   });
 
   socket.on("disconnect", () => {
-    removeUserFromRoom(socket.id);
+    removeUserFromRoom(socket.id, rooms);
+    emitRoomsOnChange(rooms, io);
   });
 
   socket.on("get-rooms", () => {
@@ -59,9 +65,9 @@ io.on("connection", (socket) => {
   });
 
   socket.on("leave-room", (room) => {
-    removeUserFromRoom(socket.id);
+    removeUserFromRoom(socket.id, rooms);
     socket.leave(room);
-    console.log(rooms);
+    emitRoomsOnChange(rooms, io);
   });
 
   socket.on("user-joined", (currentRoom) => {
