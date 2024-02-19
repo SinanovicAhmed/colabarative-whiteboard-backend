@@ -11,30 +11,34 @@ const io = new Server(server, {
 });
 
 const removeUserFromRoom = (socketId, rooms) => {
-  for (const [name, userIds] of rooms) {
-    const userIdIndex = userIds.indexOf(socketId);
-    if (userIdIndex !== -1) {
-      userIds.splice(userIdIndex, 1);
+  for (const [name, users] of rooms) {
+    const userIndex = users.findIndex((user) => user.socketid === socketId);
+    if (userIndex !== -1) {
+      users.splice(userIndex, 1);
 
       // later add emit message to other users about disconnected user
 
-      if (userIds.length === 0) rooms.delete(name);
+      if (users.length === 0) rooms.delete(name);
       return;
     }
   }
 };
 
 const emitRoomsOnChange = (rooms, io) => {
-  const roomNames = Array.from(rooms.keys());
-  io.emit("rooms", roomNames);
+  const roomUserList = [];
+  rooms.forEach((users, roomName) => {
+    const usernames = users.map((user) => user.username);
+    roomUserList.push({ roomName: roomName, users: usernames });
+  });
+  io.emit("rooms", roomUserList);
 };
 
 const rooms = new Map();
 io.on("connection", (socket) => {
-  socket.on("create-room", (roomName) => {
+  socket.on("create-room", ({ roomName, userName }) => {
     if (!rooms.has(roomName)) {
       rooms.set(roomName, []);
-      rooms.get(roomName).push(socket.id);
+      rooms.get(roomName).push({ socketid: socket.id, username: userName });
       socket.emit("room-created", { roomName });
       socket.join(roomName);
       emitRoomsOnChange(rooms, io);
@@ -49,17 +53,20 @@ io.on("connection", (socket) => {
   });
 
   socket.on("get-rooms", () => {
-    const roomNames = Array.from(rooms.keys());
-    socket.emit("rooms", roomNames);
+    const roomUserList = [];
+    rooms.forEach((users, roomName) => {
+      const usernames = users.map((user) => user.username);
+      roomUserList.push({ roomName: roomName, users: usernames });
+    });
+    socket.emit("rooms", roomUserList);
   });
 
-  socket.on("join-room", (roomName) => {
+  socket.on("join-room", ({ roomName, userName }) => {
     if (!rooms.has(roomName)) {
       socket.emit("room-not-found", { message: "Room does not exist!" });
     } else {
-      const roomData = rooms.get(roomName);
       socket.join(roomName);
-      rooms.get(roomName).push(socket.id);
+      rooms.get(roomName).push({ socketid: socket.id, username: userName });
       io.sockets.in(roomName).emit("room-joined", roomName);
     }
   });
@@ -70,14 +77,19 @@ io.on("connection", (socket) => {
     emitRoomsOnChange(rooms, io);
   });
 
-  socket.on("user-joined", (currentRoom) => {
+  socket.on("user-joined", ({ currentRoom, userName }) => {
     //returning user to the room on page reload
-    if (rooms.has(currentRoom) && !rooms.get(currentRoom).includes(socket.id)) {
-      socket.join(currentRoom);
-      rooms.get(currentRoom).push(socket.id);
-    }
-    if (!rooms.has(currentRoom)) io.to(socket.id).emit("room-doesnt-exist");
+    if (rooms.has(currentRoom)) {
+      const room = rooms.get(currentRoom);
+      const userExistsInRoom = room.some((user) => user.socketid === socket.id);
 
+      if (!userExistsInRoom) {
+        socket.join(currentRoom);
+        rooms.get(currentRoom).push({ socketid: socket.id, username: userName });
+      }
+    }
+
+    if (!rooms.has(currentRoom)) io.to(socket.id).emit("room-doesnt-exist");
     io.sockets.in(currentRoom).emit("request-canvas-state");
   });
 
