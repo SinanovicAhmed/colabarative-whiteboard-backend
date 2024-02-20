@@ -1,4 +1,5 @@
 const removeUserFromRoom = (socketId, rooms) => {
+  let removedFrom = null;
   for (const [name, users] of rooms) {
     const userIndex = users.findIndex((user) => user.socketid === socketId);
     if (userIndex !== -1) {
@@ -6,20 +7,23 @@ const removeUserFromRoom = (socketId, rooms) => {
 
       // later add emit message to other users about disconnected user
 
+      removedFrom = name;
       if (users.length === 0) rooms.delete(name);
-      return;
+      break;
     }
   }
+  return removedFrom;
 };
 
-const emitRoomsOnChange = (rooms, io, emitTo) => {
+const emitRoomsOnChange = (rooms, io, roomName) => {
   const roomUserList = [];
-  rooms.forEach((users, roomName) => {
+  rooms.forEach((users, room) => {
     const usernames = users.map((user) => user.username);
-    roomUserList.push({ roomName: roomName, users: usernames });
+    roomUserList.push({ roomName: room, users: usernames });
   });
 
   io.emit("rooms", roomUserList);
+  if (roomName) io.sockets.in(roomName).emit("users-in-room", rooms.get(roomName));
 };
 
 module.exports = { removeUserFromRoom, emitRoomsOnChange };

@@ -17,7 +17,7 @@ const initilizeWhiteboardSocket = (server) => {
         rooms.get(roomName).push({ socketid: socket.id, username: userName });
         socket.emit("room-created", { roomName });
         socket.join(roomName);
-        emitRoomsOnChange(rooms, io);
+        emitRoomsOnChange(rooms, io, roomName);
       } else {
         socket.emit("room-exists", { message: "Room already exists!" });
       }
@@ -29,8 +29,8 @@ const initilizeWhiteboardSocket = (server) => {
       } else {
         socket.join(roomName);
         rooms.get(roomName).push({ socketid: socket.id, username: userName });
-        io.sockets.in(roomName).emit("room-joined", roomName);
-        emitRoomsOnChange(rooms, io);
+        socket.emit("room-joined", roomName);
+        emitRoomsOnChange(rooms, io, roomName);
       }
     });
 
@@ -48,6 +48,7 @@ const initilizeWhiteboardSocket = (server) => {
 
       if (!rooms.has(currentRoom)) io.to(socket.id).emit("room-doesnt-exist");
       io.sockets.in(currentRoom).emit("request-canvas-state");
+      emitRoomsOnChange(rooms, io, currentRoom);
     });
 
     socket.on("get-rooms", () => {
@@ -61,14 +62,14 @@ const initilizeWhiteboardSocket = (server) => {
 
     /*DISCONNECTION AND LEAVING ROOMS*/
     socket.on("disconnect", () => {
-      removeUserFromRoom(socket.id, rooms);
-      emitRoomsOnChange(rooms, io);
+      const removedFrom = removeUserFromRoom(socket.id, rooms);
+      emitRoomsOnChange(rooms, io, removedFrom);
     });
 
     socket.on("leave-room", (room) => {
       removeUserFromRoom(socket.id, rooms);
       socket.leave(room);
-      emitRoomsOnChange(rooms, io);
+      emitRoomsOnChange(rooms, io, room);
     });
 
     /*CANVAS FUNCTIONS*/
