@@ -82,6 +82,10 @@ const initilizeWhiteboardSocket = (server) => {
     });
 
     socket.on("clearCanvas", (roomName) => io.sockets.in(roomName).emit("clearCanvas"));
+
+    socket.on("message", ({ message, currentRoom }) => {
+      socket.broadcast.to(currentRoom).emit("emit-message", message);
+    });
   });
 };
 
