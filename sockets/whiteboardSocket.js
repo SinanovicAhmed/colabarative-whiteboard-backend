@@ -19,7 +19,7 @@ const initilizeWhiteboardSocket = (server) => {
         socket.join(roomName);
         emitRoomsOnChange(rooms, io, roomName);
       } else {
-        socket.emit("room-exists", { message: "Room already exists!" });
+        socket.emit("room-exists");
       }
     });
 
