@@ -47,7 +47,8 @@ const initilizeWhiteboardSocket = (server) => {
       }
 
       if (!rooms.has(currentRoom)) io.to(socket.id).emit("room-doesnt-exist");
-      io.sockets.in(currentRoom).emit("request-canvas-state");
+      socket.broadcast.to(currentRoom).emit("notify-user-joined", userName);
+      socket.broadcast.to(currentRoom).emit("request-canvas-state");
       emitRoomsOnChange(rooms, io, currentRoom);
     });
 
@@ -62,19 +63,19 @@ const initilizeWhiteboardSocket = (server) => {
 
     /*DISCONNECTION AND LEAVING ROOMS*/
     socket.on("disconnect", () => {
-      const removedFrom = removeUserFromRoom(socket.id, rooms);
+      const removedFrom = removeUserFromRoom(socket.id, rooms, io);
       emitRoomsOnChange(rooms, io, removedFrom);
     });
 
     socket.on("leave-room", (room) => {
-      removeUserFromRoom(socket.id, rooms);
+      removeUserFromRoom(socket.id, rooms, io);
       socket.leave(room);
       emitRoomsOnChange(rooms, io, room);
     });
 
     /*CANVAS FUNCTIONS*/
     socket.on("canvas-state", ({ dataURL, currentRoom }) => {
-      io.sockets.in(currentRoom).emit("requested-canvas-state", dataURL);
+      socket.broadcast.to(currentRoom).emit("requested-canvas-state", dataURL);
     });
 
     socket.on("drawing", ({ prevPoint, currentPoint, color, currentRoom }) => {

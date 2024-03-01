@@ -1,11 +1,10 @@
-const removeUserFromRoom = (socketId, rooms) => {
+const removeUserFromRoom = (socketId, rooms, io) => {
   let removedFrom = null;
   for (const [name, users] of rooms) {
     const userIndex = users.findIndex((user) => user.socketid === socketId);
     if (userIndex !== -1) {
-      users.splice(userIndex, 1);
-
-      // later add emit message to other users about disconnected user
+      const { username } = users.splice(userIndex, 1)[0];
+      io.sockets.in(name).emit("user-left", username);
 
       removedFrom = name;
       if (users.length === 0) rooms.delete(name);
